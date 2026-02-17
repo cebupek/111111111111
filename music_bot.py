@@ -26,8 +26,8 @@ import uvicorn
 
 BOT_TOKEN = "8566474882:AAHfufmlEeW0XmkX_y4IDL6Tcwj52D6Eaa8"
 MOD_IDS = [7628577301, 222222, 333333]
-APP_URL = "https://твой-домен.com"
-SITE_URL = "https://твой-сайт.com"
+APP_URL = "https://one11111111111-1.onrender.com"
+SITE_URL = "https://music.be-sunshainy.ru/"
 
 # ============================================================
 #  Это можно не трогать
