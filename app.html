@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Модерация</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&family=Mulish:wght@400;500;600&display=swap');
+
+  :root {
+    --bg:      #0a0a0f;
+    --surface: #13131a;
+    --card:    #1a1a25;
+    --border:  #2a2a3a;
+    --accent:  #7c5cfc;
+    --green:   #22c55e;
+    --red:     #ef4444;
+    --yellow:  #f59e0b;
+    --text:    #e8e8f0;
+    --muted:   #6b6b85;
+    --radius:  14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Mulish', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+
+  /* ── ШАПКА ── */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px 0;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .logo {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+
+  .queue-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+    min-width: 24px;
+    text-align: center;
+  }
+  .queue-badge.empty { background: var(--border); color: var(--muted); }
+
+  /* ── ТАБЫ ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-radius: 8px 8px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    background: none;
+    position: relative;
+    transition: color 0.15s;
+  }
+  .tab.active {
+    color: var(--text);
+  }
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+  }
+
+  /* ── КОНТЕНТ ── */
+  .content {
+    padding: 16px;
+    display: none;
+  }
+  .content.active { display: block; }
+
+  /* ── КАРТОЧКА ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .card.handled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .card-accent-line {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 3px 0 0 3px;
+  }
+  .card-accent-line.green { background: var(--green); }
+  .card-accent-line.red   { background: var(--red); }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .card-type {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .card-id {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: monospace;
+  }
+
+  .card-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .card-title.unknown { color: var(--yellow); }
+
+  .card-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+  .card-meta span { color: var(--text); opacity: 0.7; }
+
+  /* ── ПЛЕЕР ── */
+  .player {
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .play-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  .play-btn:active { transform: scale(0.92); }
+  .play-btn.loading { opacity: 0.6; pointer-events: none; }
+
+  .player-info { flex: 1; min-width: 0; }
+  .player-title {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .player-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .player-progress {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.3s linear;
+  }
+  .player-time {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  /* ── ОБЛОЖКА ── */
+  .cover-img {
+    width: 100%;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    max-height: 200px;
+    object-fit: cover;
+    background: var(--surface);
+  }
+
+  /* ── КНОПКИ ДЕЙСТВИЙ ── */
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: none;
+    font-family: 'Mulish', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: transform 0.1s, opacity 0.2s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+  .btn-approve  { background: var(--green); color: #000; }
+  .btn-reject   { background: var(--red);   color: #fff; }
+  .btn-sign     { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); flex: none; }
+  .btn-outline  { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+  /* ── СТАТУС ОБРАБОТАНО ── */
+  .handled-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── СПИСОК ПРИЧИН ── */
+  .reasons-list {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    animation: slideDown 0.15s ease;
+  }
+  .reasons-list.visible { display: flex; }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .reason-btn {
+    padding: 9px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--text);
+    font-family: 'Mulish', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .reason-btn:hover { background: var(--card); border-color: var(--accent); }
+
+  /* ── МОДАЛ ПОДПИСАНИЯ ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 20px 16px 32px;
+    width: 100%;
+    max-width: 480px;
+    animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+
+  .modal-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'Mulish', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* ── ИСТОРИЯ ── */
+  .history-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .history-item:last-child { border-bottom: none; }
+
+  .history-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .history-icon.approve { background: rgba(34,197,94,0.15); }
+  .history-icon.reject  { background: rgba(239,68,68,0.15); }
+
+  .history-text { flex: 1; }
+  .history-main { font-size: 13px; font-weight: 500; line-height: 1.4; }
+  .history-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── ПРАВИЛА ── */
+  .rules-content {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    line-height: 1.7;
+    font-size: 13px;
+  }
+  .rules-content b { color: var(--text); font-weight: 700; }
+
+  /* ── ПУСТО / ЗАГРУЗКА ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state .title { font-family: 'Unbounded', sans-serif; font-size: 14px; color: var(--text); margin-bottom: 6px; }
+
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 40px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── ТОСТ ── */
+  .toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 300;
+    transition: transform 0.2s ease;
+    white-space: nowrap;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: var(--red);   color: var(--red); }
+  .toast.info    { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ШАПКА -->
+<div class="header">
+  <div class="header-top">
+    <div class="logo">MODER<span>.</span></div>
+    <div class="queue-badge empty" id="queueBadge">0</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('queue')">Очередь</button>
+    <button class="tab" onclick="switchTab('history')">История</button>
+    <button class="tab" onclick="switchTab('rules')">Правила</button>
+  </div>
+</div>
+
+<!-- ОЧЕРЕДЬ -->
+<div class="content active" id="tab-queue">
+  <div class="spinner" id="queueLoader"></div>
+  <div id="queueContent" style="display:none"></div>
+</div>
+
+<!-- ИСТОРИЯ -->
+<div class="content" id="tab-history">
+  <div class="spinner" id="historyLoader" style="display:none"></div>
+  <div id="historyContent"></div>
+</div>
+
+<!-- ПРАВИЛА -->
+<div class="content" id="tab-rules">
+  <div class="rules-content" id="rulesContent">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<!-- МОДАЛ ПОДПИСАНИЯ ТРЕКА -->
+<div class="modal-overlay" id="signModal">
+  <div class="modal">
+    <div class="modal-title">✍️ Подписать трек</div>
+    <div class="field">
+      <label>Исполнитель</label>
+      <input type="text" id="signArtist" placeholder="Имя исполнителя">
+    </div>
+    <div class="field">
+      <label>Название трека</label>
+      <input type="text" id="signTitle" placeholder="Название песни">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeSignModal()" style="flex:1">Отмена</button>
+      <button class="btn btn-approve" onclick="submitSign()" style="flex:2">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ТОСТ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// Инициализация Telegram WebApp
+// ─────────────────────────────────────────────
+
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+// Адаптируем цвета под тему Telegram если нужно
+document.documentElement.style.setProperty('--bg', tg.colorScheme === 'light' ? '#f0f0f5' : '#0a0a0f');
+
+const initData = tg.initData;  // строка для авторизации всех запросов
+
+
+// ─────────────────────────────────────────────
+// Запросы к боту
+// ─────────────────────────────────────────────
+
+async function request(method, path, body = null) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type':   'application/json',
+      'X-Init-Data':    initData,   // Telegram подпись — сервер проверяет
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+
+// ─────────────────────────────────────────────
+// Состояние
+// ─────────────────────────────────────────────
+
+let pendingData = { songs: [], names: [], covers: [] };
+let currentAudio = null;
+let currentPlayBtn = null;
+let signSongId = null;  // ID трека который подписываем
+
+
+// ─────────────────────────────────────────────
+// Табы
+// ─────────────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['queue','history','rules'][i] === name);
+  });
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'history') loadHistory();
+  if (name === 'rules')   loadRules();
+}
+
+
+// ─────────────────────────────────────────────
+// Загрузка очереди
+// ─────────────────────────────────────────────
+
+async function loadQueue() {
+  const data = await request('GET', '/api/pending');
+  if (data.error) { showToast('Ошибка загрузки', 'error'); return; }
+
+  pendingData = data;
+  const total = data.songs.length + data.names.length + data.covers.length;
+  const badge = document.getElementById('queueBadge');
+  badge.textContent = total;
+  badge.className = 'queue-badge' + (total === 0 ? ' empty' : '');
+
+  document.getElementById('queueLoader').style.display = 'none';
+  document.getElementById('queueContent').style.display = 'block';
+  renderQueue();
+}
+
+function renderQueue() {
+  const el = document.getElementById('queueContent');
+  const { songs, names, covers } = pendingData;
+  const total = songs.length + names.length + covers.length;
+
+  if (total === 0) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon">🎉</div>
+      <div class="title">Очередь пуста</div>
+      <div>Всё обработано!</div>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+  songs.forEach(s  => { html += renderSongCard(s); });
+  names.forEach(n  => { html += renderNameCard(n); });
+  covers.forEach(c => { html += renderCoverCard(c); });
+  el.innerHTML = html;
+}
+
+
+// ─────────────────────────────────────────────
+// Рендер карточек
+// ─────────────────────────────────────────────
+
+function renderSongCard(s) {
+  const unknown  = !s.artist || !s.title;
+  const artist   = s.artist || '❓ Неизвестен';
+  const title    = s.title  || '❓ Неизвестно';
+  const handled  = s.handled_by;
+  const accentCls = handled ? (handled.includes('принято') ? 'green' : 'red') : '';
+
+  const playerHtml = s.audio_url ? `
+    <div class="player">
+      <button class="play-btn" id="play-${s.id}" onclick="togglePlay('${s.id}','${escHtml(s.audio_url)}',this)">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="white">
+          <polygon points="2,1 13,7 2,13" id="playIcon-${s.id}"/>
+        </svg>
+      </button>
+      <div class="player-info">
+        <div class="player-title">${escHtml(artist)} — ${escHtml(title)}</div>
+        <div class="player-bar" onclick="seekAudio(event, '${s.id}')">
+          <div class="player-progress" id="prog-${s.id}"></div>
+        </div>
+        <div class="player-time" id="time-${s.id}">0:00 / 0:00</div>
+      </div>
+    </div>` : `<div class="card-meta" style="color:var(--yellow)">⚠️ Аудио не прикреплено</div>`;
+
+  const unknownBadge = unknown ? `<div style="color:var(--yellow);font-size:12px;margin-bottom:10px;font-weight:600">⚠️ Трек без подписи — проверь в интернете</div>` : '';
+  const signBtn      = unknown ? `<button class="btn btn-sign" onclick="openSignModal(${s.id})">✍️ Подписать</button>` : '';
+
+  const actionsHtml = handled
+    ? `<div class="handled-badge">✅ Обработано: ${escHtml(handled)}</div>`
+    : `<div class="actions">
+        <button class="btn btn-approve" onclick="approve('song',${s.id},this)">✅ Принять</button>
+        <button class="btn btn-reject"  onclick="showReasons('song',${s.id})">❌ Отклонить</button>
+        ${signBtn}
+      </div>
+      <div class="reasons-list" id="reasons-song-${s.id}"></div>`;
+
+  return `<div class="card ${handled ? 'handled' : ''}" id="card-song-${s.id}">
+    <div class="card-accent-line ${accentCls}"></div>
+    <div class="card-header">
+      <div class="card-type">🎵 Новая песня</div>
+      <div class="card-id">#${s.id}</div>
+    </div>
+    ${unknownBadge}
+    <div class="card-title ${unknown ? 'unknown' : ''}">${escHtml(title)}</div>
+    <div class="card-meta">
+      🎤 <span>${escHtml(artist)}</span><br>
+      👤 Загрузил: <span>${escHtml(s.uploader || '—')}</span>
+    </div>
+    ${playerHtml}
+    ${actionsHtml}
+  </div>`;
+}
+
+function renderNameCard(n) {
+  const handled = n.handled_by;
+  const actionsHtml = handled
+    ? `<div class="handled-badge">✅ Обработано: ${escHtml(handled)}</div>`
+    : `<div class="actions">
+        <button class="btn btn-approve" onclick="approve('name',${n.id},this)">✅ Принять</button>
+        <button class="btn btn-reject"  onclick="showReasons('name',${n.id})">❌ Отклонить</button>
+      </div>
+      <div class="reasons-list" id="reasons-name-${n.id}"></div>`;
+
+  return `<div class="card ${handled ? 'handled' : ''}" id="card-name-${n.id}">
+    <div class="card-accent-line"></div>
+    <div class="card-header">
+      <div class="card-type">📋 Название плейлиста</div>
+      <div class="card-id">#${n.id}</div>
+    </div>
+    <div class="card-title">${escHtml(n.name || '—')}</div>
+    <div class="card-meta">👤 Создатель: <span>${escHtml(n.creator || '—')}</span></div>
+    ${actionsHtml}
+  </div>`;
+}
+
+function renderCoverCard(c) {
+  const handled   = c.handled_by;
+  const coverHtml = c.cover_url
+    ? `<img class="cover-img" src="${escHtml(c.cover_url)}" alt="Обложка" loading="lazy">`
+    : `<div style="color:var(--yellow);font-size:12px;margin-bottom:10px">⚠️ Фото не прикреплено</div>`;
+
+  const actionsHtml = handled
+    ? `<div class="handled-badge">✅ Обработано: ${escHtml(handled)}</div>`
+    : `<div class="actions">
+        <button class="btn btn-approve" onclick="approve('cover',${c.id},this)">✅ Принять</button>
+        <button class="btn btn-reject"  onclick="showReasons('cover',${c.id})">❌ Отклонить</button>
+      </div>
+      <div class="reasons-list" id="reasons-cover-${c.id}"></div>`;
+
+  return `<div class="card ${handled ? 'handled' : ''}" id="card-cover-${c.id}">
+    <div class="card-accent-line"></div>
+    <div class="card-header">
+      <div class="card-type">🖼 Обложка плейлиста</div>
+      <div class="card-id">#${c.id}</div>
+    </div>
+    <div class="card-title">${escHtml(c.name || '—')}</div>
+    <div class="card-meta">👤 Создатель: <span>${escHtml(c.creator || '—')}</span></div>
+    ${coverHtml}
+    ${actionsHtml}
+  </div>`;
+}
+
+
+// ─────────────────────────────────────────────
+// Плеер
+// ─────────────────────────────────────────────
+
+function togglePlay(songId, url, btn) {
+  if (currentAudio && currentAudio._songId === songId) {
+    if (currentAudio.paused) { currentAudio.play(); setPlayIcon(btn, true); }
+    else                     { currentAudio.pause(); setPlayIcon(btn, false); }
+    return;
+  }
+  if (currentAudio) { currentAudio.pause(); if (currentPlayBtn) setPlayIcon(currentPlayBtn, false); }
+
+  const audio = new Audio(url);
+  audio._songId = songId;
+  currentAudio = audio; currentPlayBtn = btn;
+
+  btn.classList.add('loading');
+  audio.addEventListener('canplay', () => { btn.classList.remove('loading'); audio.play(); setPlayIcon(btn, true); });
+  audio.addEventListener('timeupdate', () => updateProgress(audio, songId));
+  audio.addEventListener('ended', () => { setPlayIcon(btn, false); document.getElementById('prog-' + songId).style.width = '0%'; });
+  audio.addEventListener('error', () => { btn.classList.remove('loading'); showToast('Ошибка загрузки аудио', 'error'); });
+  audio.load();
+}
+
+function setPlayIcon(btn, playing) {
+  const icon = btn.querySelector('polygon');
+  if (!icon) return;
+  icon.setAttribute('points', playing ? '3,2 7,7 3,12 5,12 11,7 5,2' : '2,1 13,7 2,13');
+}
+
+function updateProgress(audio, id) {
+  if (!audio.duration) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  const progEl = document.getElementById('prog-' + id);
+  const timeEl = document.getElementById('time-' + id);
+  if (progEl) progEl.style.width = pct + '%';
+  if (timeEl) timeEl.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
+}
+
+function seekAudio(e, songId) {
+  if (!currentAudio || currentAudio._songId !== songId) return;
+  const bar = e.currentTarget;
+  const pct = e.offsetX / bar.offsetWidth;
+  currentAudio.currentTime = pct * currentAudio.duration;
+}
+
+function fmtTime(s) {
+  s = Math.floor(s);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+
+// ─────────────────────────────────────────────
+// Действия — принять
+// ─────────────────────────────────────────────
+
+async function approve(type, id, btn) {
+  btn.disabled = true;
+  const result = await request('POST', '/api/action', { type, id, action: 'approve' });
+
+  if (result.error === 'already_handled') {
+    showToast('⚠️ Уже обработано: ' + result.by, 'info');
+    markCardHandled(type, id, result.by);
+    return;
+  }
+  if (result.error) { showToast('Ошибка: ' + result.error, 'error'); btn.disabled = false; return; }
+
+  showToast('✅ Принято!', 'success');
+  tg.HapticFeedback.notificationOccurred('success');
+  markCardHandled(type, id, tg.initDataUnsafe?.user?.first_name || 'вы');
+  updateBadge(-1);
+}
+
+
+// ─────────────────────────────────────────────
+// Действия — причины отклонения
+// ─────────────────────────────────────────────
+
+async function showReasons(type, id) {
+  const reasonsEl = document.getElementById(`reasons-${type}-${id}`);
+  if (reasonsEl.classList.contains('visible')) {
+    reasonsEl.classList.remove('visible'); return;
+  }
+
+  const data = await request('GET', `/api/reasons/${type}`);
+  const reasons = data.reasons || [];
+  reasonsEl.innerHTML = reasons.map(r =>
+    `<button class="reason-btn" onclick="reject('${type}',${id},'${r.code}',this)">${r.label}</button>`
+  ).join('');
+  reasonsEl.classList.add('visible');
+}
+
+async function reject(type, id, reasonCode, btn) {
+  btn.disabled = true;
+  const result = await request('POST', '/api/action', { type, id, action: 'reject', reason: reasonCode });
+
+  if (result.error === 'already_handled') {
+    showToast('⚠️ Уже обработано: ' + result.by, 'info');
+    markCardHandled(type, id, result.by);
+    return;
+  }
+  if (result.error) { showToast('Ошибка: ' + result.error, 'error'); btn.disabled = false; return; }
+
+  showToast('❌ Отклонено', 'error');
+  tg.HapticFeedback.notificationOccurred('warning');
+  markCardHandled(type, id, tg.initDataUnsafe?.user?.first_name || 'вы');
+  updateBadge(-1);
+}
+
+
+// ─────────────────────────────────────────────
+// Подписание трека
+// ─────────────────────────────────────────────
+
+function openSignModal(songId) {
+  signSongId = songId;
+  document.getElementById('signArtist').value = '';
+  document.getElementById('signTitle').value  = '';
+  document.getElementById('signModal').classList.add('open');
+  setTimeout(() => document.getElementById('signArtist').focus(), 300);
+}
+
+function closeSignModal() {
+  document.getElementById('signModal').classList.remove('open');
+  signSongId = null;
+}
+
+async function submitSign() {
+  const artist = document.getElementById('signArtist').value.trim();
+  const title  = document.getElementById('signTitle').value.trim();
+  if (!artist || !title) { showToast('Заполни оба поля', 'error'); return; }
+
+  const result = await request('POST', '/api/action', {
+    type: 'song', id: signSongId, action: 'sign', artist, title
+  });
+
+  if (result.error) { showToast('Ошибка: ' + result.error, 'error'); return; }
+
+  showToast('✍️ Трек подписан', 'success');
+  closeSignModal();
+
+  // Обновляем карточку локально
+  const songInData = pendingData.songs.find(s => s.id === signSongId);
+  if (songInData) { songInData.artist = artist; songInData.title = title; }
+  renderQueue();
+}
+
+
+// ─────────────────────────────────────────────
+// Вспомогалки UI
+// ─────────────────────────────────────────────
+
+function markCardHandled(type, id, modName) {
+  const card = document.getElementById(`card-${type}-${id}`);
+  if (!card) return;
+  card.classList.add('handled');
+  const actionsArea = card.querySelector('.actions');
+  const reasonsArea = card.querySelector('.reasons-list');
+  if (actionsArea) actionsArea.outerHTML = `<div class="handled-badge">✅ Обработано: ${escHtml(modName)}</div>`;
+  if (reasonsArea) reasonsArea.remove();
+}
+
+function updateBadge(delta) {
+  const badge = document.getElementById('queueBadge');
+  const val   = Math.max(0, parseInt(badge.textContent || '0') + delta);
+  badge.textContent = val;
+  badge.className = 'queue-badge' + (val === 0 ? ' empty' : '');
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+
+// ─────────────────────────────────────────────
+// История
+// ─────────────────────────────────────────────
+
+async function loadHistory() {
+  const el = document.getElementById('historyContent');
+  el.innerHTML = '<div class="spinner"></div>';
+  const data = await request('GET', '/api/history');
+  const list = data.history || [];
+
+  if (list.length === 0) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon">📭</div>
+      <div class="title">История пуста</div>
+      <div>Ещё ничего не обработано</div>
+    </div>`; return;
+  }
+
+  const icons = { song: '🎵', name: '📋', cover: '🖼' };
+  const labels = { song: 'Песня', name: 'Название', cover: 'Обложка' };
+
+  el.innerHTML = list.map(h => `
+    <div class="history-item">
+      <div class="history-icon ${h.action}">
+        ${h.action === 'approve' ? '✅' : '❌'}
+      </div>
+      <div class="history-text">
+        <div class="history-main">
+          ${icons[h.type] || '•'} ${labels[h.type] || ''} #${h.id}
+          — ${h.action === 'approve' ? '<span style="color:var(--green)">принято</span>' : '<span style="color:var(--red)">отклонено</span>'}
+          ${h.reason ? `<span style="color:var(--muted);font-size:12px">(${escHtml(h.reason)})</span>` : ''}
+        </div>
+        <div class="history-sub">👤 ${escHtml(h.mod)} · ${h.time}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+
+// ─────────────────────────────────────────────
+// Правила
+// ─────────────────────────────────────────────
+
+async function loadRules() {
+  const data = await request('GET', '/api/rules');
+  const el   = document.getElementById('rulesContent');
+  // Конвертируем простые HTML теги из питона в нормальный вид
+  el.innerHTML = (data.rules || '').replace(/\n/g, '<br>');
+}
+
+
+// ─────────────────────────────────────────────
+// Автообновление очереди каждые 15 секунд
+// ─────────────────────────────────────────────
+
+async function refreshQueue() {
+  const data = await request('GET', '/api/pending');
+  if (data.error) return;
+
+  // Добавляем новые элементы без полного ре-рендера (чтобы не сбрасывать плеер)
+  const newSongs  = data.songs.filter(s  => !pendingData.songs.find(x  => x.id === s.id));
+  const newNames  = data.names.filter(n  => !pendingData.names.find(x  => x.id === n.id));
+  const newCovers = data.covers.filter(c => !pendingData.covers.find(x => x.id === c.id));
+
+  if (newSongs.length || newNames.length || newCovers.length) {
+    pendingData.songs  = [...data.songs];
+    pendingData.names  = [...data.names];
+    pendingData.covers = [...data.covers];
+    renderQueue();
+    const newCount = newSongs.length + newNames.length + newCovers.length;
+    showToast(`+${newCount} новых элементов`, 'info');
+    tg.HapticFeedback.notificationOccurred('success');
+  }
+
+  // Обновляем статусы обработанных
+  [...data.songs, ...data.names, ...data.covers].forEach(item => {
+    if (item.handled_by) {
+      const type = data.songs.includes(item) ? 'song' : data.names.includes(item) ? 'name' : 'cover';
+      markCardHandled(type, item.id, item.handled_by);
+    }
+  });
+
+  const total = data.songs.length + data.names.length + data.covers.length;
+  const badge = document.getElementById('queueBadge');
+  badge.textContent = total;
+  badge.className = 'queue-badge' + (total === 0 ? ' empty' : '');
+}
+
+
+// ─────────────────────────────────────────────
+// Закрытие модала по клику на оверлей
+// ─────────────────────────────────────────────
+
+document.getElementById('signModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSignModal();
+});
+
+
+// ─────────────────────────────────────────────
+// Старт
+// ─────────────────────────────────────────────
+
+loadQueue();
+loadRules();
+setInterval(refreshQueue, 15000);
+</script>
+</body>
+</html>
