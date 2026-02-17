@@ -1,0 +1,11 @@
+# HTTP-клиент для запросов
+httpx
+
+# Telegram Bot (стабильная версия 20+)
+python-telegram-bot==20.8
+
+# Веб-сервер для Mini App
+fastapi
+
+# ASGI сервер для FastAPI
+uvicorn[standard]
